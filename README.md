@@ -16,4 +16,5 @@ I use CLion IDE, with the JetBrains AI, but the original ideas have a fully huma
 
 This is an excercise in LLM coding with the JetBrains AI, and cognitive therapy for me, as the human collaborator.
 
-Selfie 
+
+![Selfie ](MacForth.png)
