@@ -12,8 +12,8 @@ Forth words are tokenized, the tokens are then optimized, allowing common FORTH 
 efficient MACRO Words that the compiler then uses. This is limited but extensible.
 
 This is a CMAKE project 
-I use CLion, with the JetBrains AI, but the original ideas have a fully human origin.
+I use CLion IDE, with the JetBrains AI, but the original ideas have a fully human origin.
 
-This is an excercise in LLM coding with the JetBrains AI, and cognitive therapy for me, the human collaborator.
+This is an excercise in LLM coding with the JetBrains AI, and cognitive therapy for me, as the human collaborator.
 
 Selfie 
