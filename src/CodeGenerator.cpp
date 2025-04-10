@@ -1591,9 +1591,99 @@ static void compile_CMOVEREV() {
     compile_3DROP();
 }
 
+// support C, into last word created
+static void compile_CCOMMA() {
+    const uint8_t c = static_cast<uint8_t>(cpop()); // value
+    const auto &dict = ForthDictionary::instance();
+    const auto entry = dict.getLatestWordAdded();
+    const auto byteArray = static_cast<uint8_t *>(entry->data);
+    if (entry->offset < entry->capacity) {
+        byteArray[entry->offset++] = static_cast<uint8_t>(c);
+    } else {
+        SignalHandler::instance().raise(28);
+    }
+}
+
+// , is 64 bit
+static void compile_CCOMMA_INT64() {
+    const int64_t value = static_cast<int64_t>(cpop()); // Value to store
+    const auto &dict = ForthDictionary::instance();
+    const auto entry = dict.getLatestWordAdded();
+    const auto intArray = static_cast<int64_t *>(entry->data); // Treat as int64_t array
+
+    // Ensure there is enough capacity for an int64_t
+    if (entry->offset + sizeof(int64_t) <= entry->capacity) {
+        intArray[entry->offset / sizeof(int64_t)] = value; // Store value
+        entry->offset += sizeof(int64_t); // Increment offset by size of int64_t
+    } else {
+        // Handle out-of-bounds access
+        SignalHandler::instance().raise(28); // Raise signal 28 (custom error)
+    }
+}
+
+static void compile_CCOMMA_INT32() {
+    const int32_t value = static_cast<int32_t>(cpop()); // Value to store
+    const auto &dict = ForthDictionary::instance();
+    const auto entry = dict.getLatestWordAdded();
+    const auto intArray = static_cast<int32_t *>(entry->data); // Treat as int32_t array
+
+    // Ensure there is enough capacity for an int32_t
+    if (entry->offset + sizeof(int32_t) <= entry->capacity) {
+        intArray[entry->offset / sizeof(int32_t)] = value; // Store value
+        entry->offset += sizeof(int32_t); // Increment offset by size of int32_t
+    } else {
+        // Handle out-of-bounds access
+        SignalHandler::instance().raise(28); // Custom signal for out-of-memory
+    }
+}
+
+static void compile_CCOMMA_INT16() {
+    const int16_t value = static_cast<int16_t>(cpop()); // Value to store
+    const auto &dict = ForthDictionary::instance();
+    const auto entry = dict.getLatestWordAdded();
+    const auto intArray = static_cast<int16_t *>(entry->data); // Treat as int16_t array
+
+    // Ensure there is enough capacity for an int16_t
+    if (entry->offset + sizeof(int16_t) <= entry->capacity) {
+        intArray[entry->offset / sizeof(int16_t)] = value; // Store value
+        entry->offset += sizeof(int16_t); // Increment offset by size of int16_t
+    } else {
+        // Handle out-of-bounds access
+        SignalHandler::instance().raise(28); // Custom signal for out-of-memory
+    }
+}
+
 
 void code_generator_add_memory_words() {
     auto &dict = ForthDictionary::instance();
+
+    dict.addCodeWord("C,", "FORTH",
+                     ForthState::EXECUTABLE,
+                     ForthWordType::WORD,
+                     nullptr,
+                     compile_CCOMMA,
+                     nullptr);
+
+    dict.addCodeWord(",", "FORTH",
+                     ForthState::EXECUTABLE,
+                     ForthWordType::WORD,
+                     nullptr,
+                     compile_CCOMMA_INT64,
+                     nullptr);
+
+    dict.addCodeWord("L,", "FORTH",
+                     ForthState::EXECUTABLE,
+                     ForthWordType::WORD,
+                     nullptr,
+                     compile_CCOMMA_INT32,
+                     nullptr);
+
+    dict.addCodeWord("W,", "FORTH",
+                     ForthState::EXECUTABLE,
+                     ForthWordType::WORD,
+                     nullptr,
+                     compile_CCOMMA_INT16,
+                     nullptr);
 
     dict.addCodeWord("+!", "UNSAFE",
                      ForthState::EXECUTABLE,
@@ -2958,6 +3048,8 @@ void runImmediateVARIABLE(std::deque<ForthToken> &tokens) {
 
     // Allocate memory for the variable's data
     auto data_ptr = WordHeap::instance().allocate(entry->id, 16);
+    entry->offset = 0;
+    entry->capacity = 16;
     if (!data_ptr || (reinterpret_cast<uintptr_t>(data_ptr) % 16 != 0)) {
         SignalHandler::instance().raise(3); // Invalid memory access
         return;
@@ -3079,7 +3171,7 @@ bool create_variable_allot(const std::string &name, size_t byteCount) {
         SignalHandler::instance().raise(3); // Handle memory allocation error
         return false;
     }
-
+    entry->capacity = byteCount;
     // Set the dictionary entry's data field to the allocated memory
     entry->data = data_ptr;
 
@@ -3244,6 +3336,7 @@ void runImmediateIS(std::deque<ForthToken> &tokens) {
 static void latest_word_allot_data() {
     const auto capacity = cpop(); // Pop the capacity from the stack
     const auto &dict = ForthDictionary::instance();
+    dict.getLatestWordAdded()->capacity = capacity;
     dict.getLatestWordAdded()->data = WordHeap::instance().allocate(
         dict.getLatestWordAdded()->getID(),
         capacity);
@@ -3270,6 +3363,7 @@ void runImmediateALLOT_TO(std::deque<ForthToken> &tokens) {
     }
     const auto capacity = cpop(); // Pop the capacity from the stack
     first_word->AllotData(capacity);
+    first_word->capacity = capacity;
 }
 
 // show help displays all the show commands
@@ -4427,9 +4521,6 @@ static void exec_LINEREADER() {
         : // No inputs
         : "memory" // Inform the compiler that memory is being changed
     );
-
-
-
 }
 
 

@@ -182,7 +182,6 @@ public:
         if (it != allocations.end()) {
             display_metadata(id, it->second);
             dump_data(it->second);
-            std::cout << std::endl;
         } else {
             std::cout << "WordHeap: Allocation not found for word ID: " << id << std::endl;
         }

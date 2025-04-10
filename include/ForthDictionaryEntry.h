@@ -70,9 +70,9 @@ struct ForthDictionaryEntry {
     mutable ForthFunction executable; // aligned
     char res4[8];
     ForthFunction generator; // aligned
-    char res7[8];
+    uint64_t capacity;
     ImmediateInterpreter immediate_interpreter; // aligned
-    char res9[8];
+    uint64_t offset;
     void *data; // alligned
     ForthDictionaryEntry *firstWordInVocabulary;
     ImmediateCompiler immediate_compiler;
@@ -81,8 +81,8 @@ struct ForthDictionaryEntry {
     // Constructor
     ForthDictionaryEntry(ForthDictionaryEntry *prev, const std::string &wordName,
                          const std::string &vocabName, ForthState wordState, ForthWordType wordType)
-        : previous(prev), state(wordState), executable(nullptr), generator(nullptr), immediate_interpreter(nullptr),
-          data(nullptr), firstWordInVocabulary(nullptr), immediate_compiler(nullptr), type(wordType) {
+        : previous(prev), state(wordState), executable(nullptr), generator(nullptr), capacity(0), immediate_interpreter(nullptr),
+            offset(0),  data(nullptr), firstWordInVocabulary(nullptr), immediate_compiler(nullptr), type(wordType) {
         word_id = SymbolTable::instance().addSymbol(wordName);
         vocab_id = SymbolTable::instance().addSymbol(vocabName);
         const char asciiInput[8] = {'F', 'O', 'R', 'T', 'H', 'J', 'I', 'T'};
@@ -93,8 +93,8 @@ struct ForthDictionaryEntry {
     ForthDictionaryEntry(ForthDictionaryEntry *prev, const std::string &wordName,
                          const std::string &vocabName, ForthState wordState, ForthWordType wordType,
                          ForthFunction executable)
-        : previous(prev), state(wordState), executable(executable), generator(nullptr), immediate_interpreter(nullptr),
-          data(nullptr), firstWordInVocabulary(nullptr), immediate_compiler(nullptr), type(wordType) {
+        : previous(prev), state(wordState), executable(executable), generator(nullptr), capacity(0), immediate_interpreter(nullptr),
+        offset(0),  data(nullptr), firstWordInVocabulary(nullptr), immediate_compiler(nullptr), type(wordType) {
         word_id = SymbolTable::instance().addSymbol(wordName);
         vocab_id = SymbolTable::instance().addSymbol(vocabName);
         const char asciiInput[8] = {'F', 'O', 'R', 'T', 'H', 'J', 'I', 'T'};
@@ -106,8 +106,8 @@ struct ForthDictionaryEntry {
                          ForthState wordState, ForthWordType wordType, ForthFunction generator,
                          ForthFunction executable, ImmediateInterpreter immediate_interpreter)
         : previous(prev), state(wordState), executable(executable), generator(generator),
-          immediate_interpreter(immediate_interpreter),
-          data(nullptr), firstWordInVocabulary(nullptr), immediate_compiler(nullptr), type(wordType) {
+          capacity(0), immediate_interpreter(immediate_interpreter),
+             offset(0),   data(nullptr), firstWordInVocabulary(nullptr), immediate_compiler(nullptr), type(wordType) {
         word_id = SymbolTable::instance().addSymbol(wordName);
         vocab_id = SymbolTable::instance().addSymbol(vocabName);
         constexpr char asciiInput[8] = {'F', 'O', 'R', 'T', 'H', 'J', 'I', 'T'};
@@ -119,8 +119,8 @@ struct ForthDictionaryEntry {
                          ForthFunction executable, ImmediateInterpreter immediate_interpreter,
                          ImmediateCompiler immediate_compiler)
         : previous(prev), state(wordState), executable(executable), generator(generator),
-          immediate_interpreter(immediate_interpreter),
-          data(nullptr), firstWordInVocabulary(nullptr), immediate_compiler(immediate_compiler), type(wordType) {
+          capacity(0), immediate_interpreter(immediate_interpreter),
+          offset(0),  data(nullptr), firstWordInVocabulary(nullptr), immediate_compiler(immediate_compiler), type(wordType) {
         word_id = SymbolTable::instance().addSymbol(wordName);
         vocab_id = SymbolTable::instance().addSymbol(vocabName);
         constexpr char asciiInput[8] = {'F', 'O', 'R', 'T', 'H', 'J', 'I', 'T'};
@@ -295,6 +295,7 @@ struct ForthDictionaryEntry {
         printPointerOrNo((void*)executable); // Cast to void* for safe printing
         std::cout << "\n";
 
+
         std::cout << "  Generator: ";
         printPointerOrNo((void*)generator);
         std::cout << "\n";
@@ -304,8 +305,10 @@ struct ForthDictionaryEntry {
         std::cout << "\n";
 
         // display data if we have any to display
+        // we have a capacity and offset in our data.
         if (data) {
             WordHeap::instance().listAllocation(id);
+            std::cout << "Allot Capacity: " << capacity << "  Allot Offset: " << offset << "\n";
         }
     }
 };

@@ -53,7 +53,8 @@ private:
         "LET statement Parser error.", // 24
         "Register Tracker error", // 25
         "End of file", // 26
-        "Unclosed comment ( ... " // 27
+        "Unclosed comment ( ... ", // 27
+        "Insufficient allotted capacity" // 28
     };
 
     // Jump buffer for longjmp
