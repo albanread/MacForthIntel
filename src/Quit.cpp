@@ -2,7 +2,11 @@
 #include <csignal>
 #include <csetjmp>
 #include "Quit.h"
+
+#include <fstream>
 #include <Interpreter.h>
+#include <unordered_set>
+
 #include "LineReader.h"
 #include "SignalHandler.h"
 #include "Settings.h"
@@ -73,6 +77,163 @@ void to_uppercase(std::string &str) {
         }
     }
 }
+
+
+// used by the FLOAD file.f command.
+std::unordered_set<std::string> loaded_files;
+
+
+void include_file(const std::string &filename) {
+
+    // Prevent circular file loading by checking if the file was already loaded
+    if (loaded_files.find(filename) != loaded_files.end()) {
+        std::cerr << "Warning: Circular or duplicate file inclusion detected: "
+                << filename << std::endl;
+        return;
+    }
+
+    // Mark this file as loaded
+    loaded_files.insert(filename);
+
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Error: Could not open file: " << filename << std::endl;
+        return;
+    }
+
+    std::string line;
+    std::string accumulated_input;
+    bool compiling = false;
+
+    // Process each line in the file
+    while (std::getline(file, line)) {
+
+        // Strip comments
+        size_t comment_pos = line.find("\\");
+        if (comment_pos != std::string::npos) {
+            line = line.substr(0, comment_pos);
+        }
+
+        // Ignore empty lines
+        if (line.empty()) {
+            continue;
+        }
+
+        // Detect fload/include commands
+        if (line.find("FLOAD") != std::string::npos || line.find("INCLUDE") != std::string::npos) {
+            // Extract the filename after the command (everything after the first space)
+            size_t start = line.find(" ") + 1; // Find space after FLOAD or INCLUDE
+            if (start < line.size()) {
+                std::string included_filename = line.substr(start); // Get the rest of the line
+
+
+                // Recursively process the included file
+                include_file(included_filename);
+            } else {
+                std::cerr << "Error: Malformed INCLUDE command in file " << filename << std::endl;
+            }
+            continue; // Skip to the next line after processing the include
+        }
+
+        // Detect compilation state toggles (based on colon/semicolon)
+        if (containsColonSpace(line)) compiling = true;
+        if (containsSemiColon(line)) compiling = false;
+
+        // Accumulate the input
+        accumulated_input += " " + line;
+
+        // If not compiling, process the accumulated input
+        if (!compiling) {
+            to_uppercase(accumulated_input); // Convert to uppercase
+            Interpreter::instance().execute(accumulated_input); // Execute the accumulated Forth code
+            accumulated_input.clear(); // Clear for the next block
+        }
+    }
+
+    file.close(); // Close the file
+
+}
+
+
+
+
+
+void process_forth_file(const std::string &filename) {
+    // Prevent circular file loading by checking if the file was already loaded
+    if (loaded_files.find(filename) != loaded_files.end()) {
+        std::cerr << "Warning: Circular or duplicate file inclusion detected: "
+                << filename << std::endl;
+        return;
+    }
+
+    // Mark this file as loaded
+    loaded_files.insert(filename);
+
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Error: Could not open file: " << filename << std::endl;
+        return;
+    }
+
+    std::string line;
+    std::string accumulated_input;
+    bool compiling = false;
+
+    std::cout << "Processing file: " << filename << std::endl;
+
+    // Process each line in the file
+    while (std::getline(file, line)) {
+
+        std::cout << (compiling ? "] " : "> ") << line << std::endl;
+
+        // Strip comments
+        size_t comment_pos = line.find("\\");
+        if (comment_pos != std::string::npos) {
+            line = line.substr(0, comment_pos);
+        }
+
+        // Ignore empty lines
+        if (line.empty()) {
+            continue;
+        }
+
+        // Detect fload/include commands
+        if (line.find("FLOAD") != std::string::npos || line.find("INCLUDE") != std::string::npos) {
+            // Extract the filename after the command (everything after the first space)
+            size_t start = line.find(" ") + 1; // Find space after FLOAD or INCLUDE
+            if (start < line.size()) {
+                std::string included_filename = line.substr(start); // Get the rest of the line
+                std::cout << "Including file: " << included_filename << std::endl;
+
+                // Recursively process the included file
+                process_forth_file(included_filename);
+            } else {
+                std::cerr << "Error: Malformed FLOAD or INCLUDE command in file " << filename << std::endl;
+            }
+            continue; // Skip to the next line after processing the include
+        }
+
+        // Detect compilation state toggles (based on colon/semicolon)
+        if (containsColonSpace(line)) compiling = true;
+        if (containsSemiColon(line)) compiling = false;
+
+        // Accumulate the input
+        accumulated_input += " " + line;
+
+        // If not compiling, process the accumulated input
+        if (!compiling) {
+            to_uppercase(accumulated_input); // Convert to uppercase
+            Interpreter::instance().execute(accumulated_input); // Execute the accumulated Forth code
+            accumulated_input.clear(); // Clear for the next block
+        }
+    }
+
+    std::cout << "Finished processing file: " << filename << std::endl;
+
+    file.close(); // Close the file
+
+}
+
 
 inline void interactive_terminal() {
     std::string input;

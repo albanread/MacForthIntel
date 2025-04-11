@@ -260,7 +260,7 @@ void code_generator_initialize() {
     code_generator_add_vocab_words();
     code_generator_add_float_words();
 
-    // compiler has started lets compile some core words.
+    // compiler has started lets directly compile some small core words.
 
     Interpreter::instance().execute(
         R"( 32 CONSTANT BL  )");
@@ -316,10 +316,6 @@ void code_generator_initialize() {
         R"(
         : COUNT
           DUP C@ SWAP 1 + SWAP ; )");
-
-
-    Interpreter::instance().execute(
-        R"( UNSAFE DEFINITIONS )");
 
     // A non line editing accept in Forth
     // Interpreter::instance().execute(
@@ -391,24 +387,6 @@ void code_generator_initialize() {
          : DEC. BASE @ 10 BASE ! SWAP . BASE ! ;
     )");
 
-
-    // recursive fact
-    Interpreter::instance().execute(
-        R"(
-    : rfact
-        DUP 2 < IF DROP 1 EXIT THEN  DUP 1 - RECURSE * ;
-    )");
-
-    // iterative fact
-    Interpreter::instance().execute(
-        R"(
-       : FACT
-           DUP 2 < IF DROP 1 EXIT THEN
-           DUP
-           BEGIN DUP 2 > WHILE
-            1 - SWAP OVER * SWAP
-           REPEAT DROP ;
-    )");
 
     Interpreter::instance().execute(
         R"( CLS ." MacForth" )");
@@ -585,6 +563,56 @@ void compile_pushConstantValue(const int64_t literal, const std::string &name) {
     assembler->add(asmjit::x86::r15, 16); // Adjust stack pointer
 }
 
+[[maybe_unused]] static void wstoreFromDS() {
+    asmjit::x86::Assembler *assembler;
+    if (initialize_assembler(assembler)) return;
+
+    assembler->comment("; -- wstore from DS (W!)");
+    assembler->comment("; store 16-bit value from TOS to memory address");
+
+    // RCX = TOS (the destination address)
+    assembler->mov(asmjit::x86::rcx, asmjit::x86::r13);
+
+    // RAX = TOS-1 (the 16-bit value to write, stored in AX)
+    assembler->mov(asmjit::x86::rax, asmjit::x86::r12);
+
+    // Store the 16-bit value in AX to the memory address pointed to by RCX
+    assembler->mov(asmjit::x86::word_ptr(asmjit::x86::rcx), asmjit::x86::ax);
+
+    assembler->comment("; -- tidy with 2DROP");
+
+    // Pop two items off the stack: TOS (R13) and TOS-1 (R12)
+    assembler->mov(asmjit::x86::r13, asmjit::x86::ptr(asmjit::x86::r15)); // Load new TOS
+    assembler->mov(asmjit::x86::r12, asmjit::x86::ptr(asmjit::x86::r15, 8)); // Load new TOS-1
+    assembler->add(asmjit::x86::r15, 16); // Update stack pointer
+}
+
+
+[[maybe_unused]] static void lstoreFromDS() {
+    asmjit::x86::Assembler *assembler;
+    if (initialize_assembler(assembler)) return;
+
+    assembler->comment("; -- lstore from DS (L!)");
+    assembler->comment("; store 32-bit value from TOS-1 to memory address in TOS");
+
+    // RCX = TOS (the destination address)
+    assembler->mov(asmjit::x86::rcx, asmjit::x86::r13);
+
+    // RAX = TOS-1 (the 32-bit value to write, stored in EAX — lower 32 bits of RAX)
+    assembler->mov(asmjit::x86::rax, asmjit::x86::r12);
+
+    // Store the 32-bit value in EAX to the memory address pointed to by RCX
+    assembler->mov(asmjit::x86::dword_ptr(asmjit::x86::rcx), asmjit::x86::eax);
+
+    assembler->comment("; -- tidy with 2DROP");
+
+    // Pop two items off the stack: TOS (R13) and TOS-1 (R12)
+    assembler->mov(asmjit::x86::r13, asmjit::x86::ptr(asmjit::x86::r15)); // Load new TOS
+    assembler->mov(asmjit::x86::r12, asmjit::x86::ptr(asmjit::x86::r15, 8)); // Load new TOS-1
+    assembler->add(asmjit::x86::r15, 16); // Adjust stack pointer
+}
+
+
 [[maybe_unused]] static void fetchFromDS() {
     asmjit::x86::Assembler *assembler;
     if (initialize_assembler(assembler)) return;
@@ -612,6 +640,28 @@ void compile_pushConstantValue(const int64_t literal, const std::string &name) {
 
     assembler->mov(asmjit::x86::rcx, asmjit::x86::r13);
     assembler->movzx(asmjit::x86::r13, asmjit::x86::byte_ptr(asmjit::x86::rcx)); // Zero-extend byte to RAX
+}
+
+[[maybe_unused]] static void wfetchFromDS() {
+    asmjit::x86::Assembler *assembler;
+    if (initialize_assembler(assembler)) return;
+
+    assembler->comment("; -- wfetch from DS (W@)");
+    assembler->comment("; fetch 16-bit value from TOS, replace TOS with the value");
+
+    assembler->mov(asmjit::x86::rcx, asmjit::x86::r13); // Load TOS address into RCX
+    assembler->movzx(asmjit::x86::r13, asmjit::x86::word_ptr(asmjit::x86::rcx)); // Zero-extend 16-bit value to R13
+}
+
+[[maybe_unused]] static void lfetchFromDS() {
+    asmjit::x86::Assembler *assembler;
+    if (initialize_assembler(assembler)) return;
+
+    assembler->comment("; -- lfetch from DS (L@)");
+    assembler->comment("; fetch 32-bit value from TOS, replace TOS with the value");
+
+    assembler->mov(asmjit::x86::rcx, asmjit::x86::r13); // Load TOS address into RCX
+    assembler->mov(asmjit::x86::r13, asmjit::x86::dword_ptr(asmjit::x86::rcx)); // Move 32-bit value into R13
 }
 
 
@@ -2043,11 +2093,39 @@ void code_generator_add_stack_words() {
                      code_generator_build_forth(cstoreFromDS),
                      nullptr);
 
+    dict.addCodeWord("W!", "UNSAFE",
+                     ForthState::EXECUTABLE,
+                     ForthWordType::WORD,
+                     static_cast<ForthFunction>(&wstoreFromDS),
+                     code_generator_build_forth(wstoreFromDS),
+                     nullptr);
+
+    dict.addCodeWord("L!", "UNSAFE",
+                     ForthState::EXECUTABLE,
+                     ForthWordType::WORD,
+                     static_cast<ForthFunction>(&lstoreFromDS),
+                     code_generator_build_forth(lstoreFromDS),
+                     nullptr);
+
     dict.addCodeWord("C@", "UNSAFE",
                      ForthState::EXECUTABLE,
                      ForthWordType::WORD,
                      static_cast<ForthFunction>(&cfetchFromDS),
                      code_generator_build_forth(cfetchFromDS),
+                     nullptr);
+
+    dict.addCodeWord("W@", "UNSAFE",
+                     ForthState::EXECUTABLE,
+                     ForthWordType::WORD,
+                     static_cast<ForthFunction>(&wfetchFromDS),
+                     code_generator_build_forth(wfetchFromDS),
+                     nullptr);
+
+    dict.addCodeWord("L@", "UNSAFE",
+                     ForthState::EXECUTABLE,
+                     ForthWordType::WORD,
+                     static_cast<ForthFunction>(&lfetchFromDS),
+                     code_generator_build_forth(lfetchFromDS),
                      nullptr);
 
 
@@ -2888,6 +2966,34 @@ void runImmediateTICK(std::deque<ForthToken> &tokens) {
     }
     cpush(reinterpret_cast<uint64_t>(word->executable));
 }
+
+void process_forth_file(const std::string &filename);
+
+extern std::unordered_set<std::string> loaded_files;
+
+void runImmediateFLOAD(std::deque<ForthToken> &tokens) {
+    if (tokens.empty()) return; // Exit early if no tokens to process
+    // Get and remove the first token
+    const ForthToken first = tokens.front();
+    const auto file_name = first.value;
+    tokens.erase(tokens.begin());
+    process_forth_file(file_name);
+    loaded_files.clear();
+}
+
+
+void include_file(const std::string &filename);
+
+void runImmediateINCLUDE(std::deque<ForthToken> &tokens) {
+    if (tokens.empty()) return; // Exit early if no tokens to process
+    // Get and remove the first token
+    const ForthToken first = tokens.front();
+    const auto file_name = first.value;
+    tokens.erase(tokens.begin());
+    include_file(file_name);
+    loaded_files.clear();
+}
+
 
 void compileImmediateTICK(std::deque<ForthToken> &tokens) {
     if (tokens.empty()) return; // Exit early if no tokens to process
@@ -4742,6 +4848,21 @@ void code_generator_add_io_words() {
                      runImmediateTICK,
                      nullptr);
 
+    dict.addCodeWord("FLOAD", "FORTH",
+                     ForthState::IMMEDIATE,
+                     ForthWordType::WORD,
+                     nullptr,
+                     nullptr,
+                     runImmediateFLOAD,
+                     nullptr);
+
+    dict.addCodeWord("INCLUDE", "FORTH",
+                     ForthState::IMMEDIATE,
+                     ForthWordType::WORD,
+                     nullptr,
+                     nullptr,
+                     runImmediateINCLUDE,
+                     nullptr);
 
     dict.addCodeWord(".\"", "FORTH",
                      ForthState::IMMEDIATE,
