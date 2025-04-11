@@ -1657,6 +1657,7 @@ static void compile_CCOMMA_INT16() {
 void code_generator_add_memory_words() {
     auto &dict = ForthDictionary::instance();
 
+    // byte store in allotment
     dict.addCodeWord("C,", "FORTH",
                      ForthState::EXECUTABLE,
                      ForthWordType::WORD,
@@ -1664,6 +1665,7 @@ void code_generator_add_memory_words() {
                      compile_CCOMMA,
                      nullptr);
 
+    // quad word store (default cell size 64bit) in allotment
     dict.addCodeWord(",", "FORTH",
                      ForthState::EXECUTABLE,
                      ForthWordType::WORD,
@@ -1671,6 +1673,7 @@ void code_generator_add_memory_words() {
                      compile_CCOMMA_INT64,
                      nullptr);
 
+    // long word 32 bit store in allotment
     dict.addCodeWord("L,", "FORTH",
                      ForthState::EXECUTABLE,
                      ForthWordType::WORD,
@@ -1678,6 +1681,7 @@ void code_generator_add_memory_words() {
                      compile_CCOMMA_INT32,
                      nullptr);
 
+    // short word 16 bit store in allotment
     dict.addCodeWord("W,", "FORTH",
                      ForthState::EXECUTABLE,
                      ForthWordType::WORD,
