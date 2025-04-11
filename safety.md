@@ -33,25 +33,38 @@ VARIABLE UPC 32 ALLOT
 79 C, 80 C, 81 C, 82 C, 83 C,
 84 C, 85 C, 86 C, 87 C, 88 C,
 89 C, 90 C, 
-
-
 ```
 
 That was a not very efficient way to create the string A..Z.
 
-Tip: ```FORTH S" ABCDEFGHIJKLMNOPQRSTUVWXYZ" UPC PLACE ``` also works
+Tip: 
 
-Either way this is a counted string, so you can use 
+```FORTH
+ S" ABCDEFGHIJKLMNOPQRSTUVWXYZ" UPC PLACE 
+```
+also works
 
-```FORTH UPC COUNT TYPE ``` to display it.
+Either way this is a counted string, so you can use
+```FORTH
+ UPC COUNT TYPE
+ ``` 
+to display it.
 
 Lets discuss the implementation of ALLOT and C, 
 
 ALLOT allocates a block of dynamic memory to the last word created.
 
-You can ```FORTH SHOW ALLOT``` to see all the alloted memory.
+You can 
+```FORTH 
+SHOW ALLOT
+```
+to see all the alloted memory.
 
-You can ```SEE UPC``` to look at the word, and you will notice the word has a data pointer
+You can 
+```FORTH
+SEE UPC
+``` 
+to look at the word, and you will notice the word has a data pointer
 as well as a capacity and an offset field.
 
 
